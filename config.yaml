@@ -1,0 +1,114 @@
+# ============================================================
+# Hybrid YOLOv11 + Faster R-CNN detection system configuration
+# ============================================================
+
+project:
+  name: "Hybrid YOLOv11 + Faster R-CNN Underwater Detector"
+  seed: 42
+
+# DUO dataset classes (COCO category ids 1..4 map to labels 0..3)
+classes:
+  - holothurian
+  - echinus
+  - scallop
+  - starfish
+
+dataset:
+  # Root folder of the labeled COCO-format DUO dataset.
+  raw_dir: "dataset/DUO"
+  annotation_train: "dataset/DUO/annotations/instances_train.json"
+  annotation_val: "dataset/DUO/annotations/instances_test.json"
+  image_dir_train: "dataset/DUO/images/train"
+  image_dir_val: "dataset/DUO/images/test"
+  # Directory for processed data / converted YOLO labels
+  processed_dir: "data/processed"
+  splits_dir: "data/splits"
+  # Target image size (square, resized)
+  image_size: 320
+  # If true, create 80/10/10 splits from train annotations (kept false:
+  # official train/test split already exists and test set is used as val)
+  make_splits: false
+
+model:
+  # enhancement
+  enhancement:
+    enabled: true
+    white_balance: true
+    clahe:
+      enabled: true
+      clip_limit: 2.0
+      tile_grid: 8
+    retinex:
+      enabled: true
+      sigmas: [15, 80, 250]
+  residual_cnn:
+    enabled: true
+    in_channels: 3
+    feature_channels: 32
+    num_blocks: 3
+    kernel_size: 3
+  backbone:
+    # YOLOv11-style backbone channel widths (C3k2/C2PSA family, compact CPU build)
+    channels: [64, 128, 256, 512]
+    depth_multiple: 0.50
+    width_multiple: 0.50
+  c2f:
+    # number of C3k2/C2F-style bottleneck splits per stage
+    repeats: [1, 2, 2]
+  sppf:
+    kernel_size: 5
+  neck:
+    # FPN/PAN output channels per scale
+    out_channels: [128, 256, 512]   # P3, P4, P5
+  rpn:
+    anchor_sizes: [[16, 32, 64], [32, 64, 128], [64, 128, 256]]
+    aspect_ratios: [[0.5, 1.0, 2.0], [0.5, 1.0, 2.0], [0.5, 1.0, 2.0]]
+    objectness_threshold: 0.5
+    nms_threshold: 0.7
+    pre_nms_top_n: 2000
+    post_nms_top_n: 300
+  roi:
+    output_size: [14, 14]
+  coordinate_attention:
+    enabled: true
+    reduction_ratio: 16
+  head:
+    # classification logits = num_classes + background
+    hidden_channels: 512
+    dropout: 0.2
+
+training:
+  batch_size: 4
+  epochs: 30
+  learning_rate: 0.0005
+  weight_decay: 0.0005
+  optimizer: "adamw"           # adamw | sgd
+  scheduler: "cosine"          # cosine | step | none
+  scheduler_step_size: 10
+  scheduler_gamma: 0.5
+  num_workers: 0               # 0 is safest on Windows
+  device: "auto"               # auto | cpu | cuda
+  mixed_precision: true        # used only when CUDA is available
+  early_stopping_patience: 8
+  checkpoint_dir: "checkpoints"
+  gradient_clip: 5.0
+  augmentation:
+    enabled: true
+    horizontal_flip: true
+    rotation: 5.0        # degrees
+    scale: [0.9, 1.1]
+    translate: 0.05
+    brightness: 0.15
+    contrast: 0.15
+
+inference:
+  confidence_threshold: 0.5
+  nms_threshold: 0.4
+  max_detections: 100
+
+outputs:
+  checkpoint_dir: "checkpoints"
+  predictions_dir: "outputs/predictions"
+  visualizations_dir: "outputs/visualizations"
+  metrics_dir: "outputs/metrics"
+  reports_dir: "reports"

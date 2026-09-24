@@ -1,0 +1,43 @@
+# Python virtual environment
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Environment / secrets
+.env
+*.env
+
+# IDE
+.vscode/
+.idea/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Training checkpoints / model weights
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.h5
+*.keras
+
+# Datasets
+dataset/
+
+# Generated outputs
+outputs/
+training/
+reports/
+
+# Logs
+*.log
+
+# Large training package
+UIEDR_MOD_Kaggle_Training_Package.zip
