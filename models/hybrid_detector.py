@@ -1,6 +1,6 @@
 """HybridYOLOFasterRCNN (Phase 14) - the complete model pipeline.
 
-image -> enhancement (classical, applied in dataloader/preprocess)
+image -> enhancement(classical, applied in dataloader/preprocess)
       -> ResidualCNN (detail restoration)
       -> YOLOv11 backbone (C3k2/C2PSA/SPPF)
       -> FPN/PAN neck -> P3/P4/P5
@@ -22,7 +22,7 @@ from torchvision.ops import nms, box_iou
 from models.residual_cnn import ResidualCNN
 from models.yolo_backbone import YOLOv11Backbone
 from models.fpn_pan import FPNPANNeck
-from models.rpn import RPN, deltas_to_boxes, _clip_boxes
+from models.rpn import RPN, deltas_to_boxes
 from models.roi_head import ROIHead
 from models.losses import rpn_loss, roi_loss, encode_deltas
 
@@ -52,6 +52,7 @@ class HybridYOLOFasterRCNN(nn.Module):
         self.rpn = RPN(tuple(neck_out), mcfg["rpn"], img_size)
         ca_cfg = dict(mcfg["roi"])
         ca_cfg["ca_reduction"] = mcfg.get("coordinate_attention", {}).get("reduction_ratio", 16)
+        ca_cfg["image_size"] = img_size
         self.roi_head = ROIHead(tuple(neck_out), num_classes, ca_cfg)
 
         self.cls_thr = cfg["inference"]["confidence_threshold"]
@@ -148,7 +149,7 @@ class HybridYOLOFasterRCNN(nn.Module):
                     targets[: len(pos_idx)] = encode_deltas(gt[gt_idx[pos_idx]],
                                                             props[pos_idx])
 
-            cls_scores, bbox_deltas = self.roi_head(feats, props[sampled])
+            cls_scores, bbox_deltas = self.roi_head(feats_i, props[sampled])
             all_cls.append(cls_scores)
             all_box.append(bbox_deltas)
             all_labels.append(labels)
@@ -166,20 +167,40 @@ class HybridYOLOFasterRCNN(nn.Module):
             losses["roi_cls"], losses["roi_box"] = z, z
         return losses
 
+    @torch.no_grad()
+    def infer_with_diagnostics(self, images: torch.Tensor):
+        """Run normal inference and also return real proposal-stage statistics."""
+        feats = self.extract_features(images)
+        return self._inference(feats, images.shape[-1], return_diagnostics=True)
+
     # ---------------------------------------------------------------- inference
     @torch.no_grad()
-    def _inference(self, feats, img_size):
-        props, scores, _ = self.rpn(feats)
+    def _inference(self, feats, img_size, return_diagnostics: bool = False):
+        props, scores, rpn_out = self.rpn(feats)
+        max_objectness = float(rpn_out["obj"].sigmoid().max()) if rpn_out["obj"].numel() else 0.0
+        diagnostics = {
+            "rpn_proposals": int(props.shape[0]),
+            "max_rpn_objectness": max_objectness,
+            "roi_proposals": int(props.shape[0]),
+            "roi_foreground_candidates": 0,
+            "max_foreground_confidence": 0.0,
+            "final_detections": 0,
+            "predicted_classes": [],
+            "predicted_boxes_xyxy": [],
+        }
         results = []
         if props.shape[0] == 0:
-            return [{"boxes": torch.zeros(0, 4), "scores": torch.zeros(0),
-                     "labels": torch.zeros(0, dtype=torch.long)}]
+            results.append({"boxes": torch.zeros(0, 4), "scores": torch.zeros(0),
+                            "labels": torch.zeros(0, dtype=torch.long)})
+            return (results, diagnostics) if return_diagnostics else results
         cls_scores, bbox_deltas = self.roi_head(feats, props)
         probs = F.softmax(cls_scores, dim=-1)
-        score_bg, best_cls = probs[:, 0], probs[:, 1:].argmax(dim=1)
+        best_cls = probs[:, 1:].argmax(dim=1)
         best_score = probs[:, 1:].max(dim=1).values
+        diagnostics["max_foreground_confidence"] = float(best_score.max()) if best_score.numel() else 0.0
 
         keep = (best_cls >= 0) & (best_score > self.cls_thr)
+        diagnostics["roi_foreground_candidates"] = int(keep.sum())
         boxes = props[keep]
         labels = best_cls[keep]
         confs = best_score[keep]
@@ -198,7 +219,11 @@ class HybridYOLOFasterRCNN(nn.Module):
             rw = torch.exp(deltas_sel[:, 2].clamp(max=4.134)) * pw
             rh = torch.exp(deltas_sel[:, 3].clamp(max=4.134)) * ph
             refined = torch.stack([rx - rw / 2, ry - rh / 2, rx + rw / 2, ry + rh / 2], -1)
-            refined = _clip_boxes(refined, img_size)
+            refined[:, 0::2] = refined[:, 0::2].clamp(0, img_size)
+            refined[:, 1::2] = refined[:, 1::2].clamp(0, img_size)
+            valid = ((refined[:, 2] - refined[:, 0] > 1)
+                     & (refined[:, 3] - refined[:, 1] > 1))
+            refined, labels, confs = refined[valid], labels[valid], confs[valid]
             # class-wise NMS
             final_b, final_s, final_l = [], [], []
             for c in labels.unique():
@@ -218,7 +243,12 @@ class HybridYOLOFasterRCNN(nn.Module):
                 "scores": torch.zeros(0).cpu(),
                 "labels": torch.zeros(0, dtype=torch.long).cpu(),
             })
-        return results
+        diagnostics["final_detections"] = int(results[0]["boxes"].shape[0])
+        diagnostics["predicted_classes"] = sorted({
+            int(label) for label in results[0]["labels"].tolist()
+        })
+        diagnostics["predicted_boxes_xyxy"] = results[0]["boxes"].tolist()
+        return (results, diagnostics) if return_diagnostics else results
 
 
 if __name__ == "__main__":

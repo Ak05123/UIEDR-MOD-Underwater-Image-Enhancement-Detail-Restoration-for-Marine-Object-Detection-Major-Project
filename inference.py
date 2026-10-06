@@ -53,10 +53,13 @@ def load_checkpoint_model(checkpoint_path: str, device: str = "auto",
 
 
 def detect_image(model_bundle: dict, img_bgr: np.ndarray,
-                 conf_thr: float | None = None, nms_thr: float | None = None) -> dict:
+                 conf_thr: float | None = None, nms_thr: float | None = None,
+                 include_diagnostics: bool = False,
+                 skip_enhancement: bool = False) -> dict:
     """Run the full pipeline on one BGR image. Returns dict with boxes/scores/labels.
 
     confidence/nms thresholds temporarily override model values when given.
+    When skip_enhancement is True, the input is already the prepared enhancement output.
     """
     model = model_bundle["model"]
     size = model_bundle["image_size"]
@@ -66,26 +69,45 @@ def detect_image(model_bundle: dict, img_bgr: np.ndarray,
     if nms_thr is not None:
         model.nms_thr = nms_thr
     try:
-        enhanced = model_bundle["enhancer"].process(img_bgr)["enhanced"] \
-            if model_bundle["enhancer"] else img_bgr
+        if skip_enhancement or not model_bundle.get("enhancer"):
+            enhanced = img_bgr.copy()
+        else:
+            enhanced = model_bundle["enhancer"].process(img_bgr)["enhanced"]
         img = cv2.resize(enhanced, (size, size))
         rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         x = torch.from_numpy(rgb).permute(2, 0, 1).float()[None] / 127.5 - 1.0
         x = x.to(model_bundle["device"])
         with torch.no_grad():
-            det = model(x)[0]
+            if include_diagnostics:
+                detections, diagnostics = model.infer_with_diagnostics(x)
+                det = detections[0]
+            else:
+                det = model(x)[0]
         # rescale boxes back to original image size
         h, w = img_bgr.shape[:2]
         boxes = det["boxes"].numpy().copy()
         if len(boxes):
             boxes[:, [0, 2]] *= w / size
             boxes[:, [1, 3]] *= h / size
-        return {
+        output = {
             "boxes": boxes,
             "scores": det["scores"].numpy(),
             "labels": det["labels"].numpy(),
             "enhanced_bgr": enhanced,
         }
+        if include_diagnostics:
+            output["diagnostics"] = diagnostics
+            output["diagnostics"]["device"] = str(model_bundle["device"])
+            output["diagnostics"]["input_size"] = [int(size), int(size)]
+            output["diagnostics"]["original_size"] = [int(w), int(h)]
+            diagnostic_boxes = np.asarray(diagnostics["predicted_boxes_xyxy"], dtype=np.float32).reshape(-1, 4)
+            if len(diagnostic_boxes):
+                diagnostic_boxes[:, [0, 2]] *= w / size
+                diagnostic_boxes[:, [1, 3]] *= h / size
+                diagnostic_boxes[:, [0, 2]] = np.clip(diagnostic_boxes[:, [0, 2]], 0, w)
+                diagnostic_boxes[:, [1, 3]] = np.clip(diagnostic_boxes[:, [1, 3]], 0, h)
+            output["diagnostics"]["predicted_boxes_xyxy"] = diagnostic_boxes.tolist()
+        return output
     finally:
         model.cls_thr, model.nms_thr = old
 

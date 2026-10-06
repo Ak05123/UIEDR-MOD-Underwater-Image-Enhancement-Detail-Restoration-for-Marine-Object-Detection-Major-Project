@@ -23,6 +23,7 @@ class ROIHead(nn.Module):
         self.roi_channels = 256
         self.out_size = (out_h, out_w)
         self.num_classes = num_classes
+        self.image_size = int(cfg.get("image_size", 320))
 
         # unify FPN level channels
         self.level_proj = nn.ModuleList([nn.Conv2d(c, self.roi_channels, 1)
@@ -89,8 +90,9 @@ class ROIHead(nn.Module):
                 continue
             rois_k = torch.cat([torch.zeros(len(idx), 1, device=device),
                                 proposals[idx]], dim=1)   # (K,5): batch idx + box
+            spatial_scale = feat.shape[-1] / self.image_size
             pooled.append(roi_align(f, rois_k, self.out_size,
-                                    spatial_scale=1.0, sampling_ratio=2,
+                                    spatial_scale=spatial_scale, sampling_ratio=2,
                                     aligned=True))
         # order restoration: roi_align results are collected per level; reassemble
         feat_cubes = torch.empty(n, self.roi_channels, *self.out_size, device=device)

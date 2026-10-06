@@ -79,7 +79,7 @@ def multi_scale_retinex(img_bgr: np.ndarray, sigmas=(15, 80, 250),
 
 # --------------------------------------------------------------------- pipeline
 class ImageEnhancer:
-    """Full enhancement chain: white balance -> CLAHE -> MSR.
+    """Full enhancementchain: white balance -> CLAHE -> MSR.
 
     Returns intermediate stages so the UI can visualise every step.
     """

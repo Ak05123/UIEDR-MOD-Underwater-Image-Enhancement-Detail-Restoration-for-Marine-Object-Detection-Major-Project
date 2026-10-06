@@ -54,7 +54,7 @@ class RPN(nn.Module):
         self.image_size = image_size
         anchor_sizes = cfg["anchor_sizes"]
         ratios = cfg["aspect_ratios"]
-        self.strides = [image_size // (2 ** (4 + i)) for i in range(len(in_channels_list))]
+        self.strides = [2 ** (3 + i) for i in range(len(in_channels_list))]
         self.num_anchors_per_level = [len(s) * len(r) for s, r in zip(anchor_sizes, ratios)]
 
         # shared conv + per-level heads

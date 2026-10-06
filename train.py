@@ -20,6 +20,8 @@ def main():
                     help="training device override")
     ap.add_argument("--num-workers", type=int, default=None,
                     help="DataLoader worker count override")
+    ap.add_argument("--early-stopping-patience", type=int, default=None,
+                    help="epochs without validation improvement before stopping (0 disables)")
     ap.add_argument("--checkpoint", default=None,
                     help="checkpoint path to resume from")
     ap.add_argument("--resume", default=None, help="deprecated alias for --checkpoint")
@@ -46,6 +48,8 @@ def main():
         cfg["training"]["device"] = args.device
     if args.num_workers is not None:
         cfg["training"]["num_workers"] = args.num_workers
+    if args.early_stopping_patience is not None:
+        cfg["training"]["early_stopping_patience"] = args.early_stopping_patience
 
     if args.validate_data:
         reports, path = validate_dataset(cfg)

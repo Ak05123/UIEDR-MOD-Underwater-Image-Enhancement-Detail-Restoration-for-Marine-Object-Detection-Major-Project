@@ -39,7 +39,7 @@ def run_evaluation(cfg, checkpoint, max_images=None, conf_thr=0.5, nms_thr=0.4,
     dl = DataLoader(ds, batch_size=batch_size, collate_fn=collate_det)
 
     old_thr = (model.cls_thr, model.nms_thr)
-    model.cls_thr, model.nms_thr = conf_thr, nms_thr
+    model.cls_thr, model.nms_thr = 0.0, nms_thr
 
     detections, ground_truths = [], []
     t0 = time.time()
@@ -52,10 +52,25 @@ def run_evaluation(cfg, checkpoint, max_images=None, conf_thr=0.5, nms_thr=0.4,
     model.cls_thr, model.nms_thr = old_thr
     elapsed = time.time() - t0
 
-    metrics = evaluate_predictions(detections, ground_truths, classes,
-                                   iou_thresholds=[0.5, 0.55, 0.6, 0.65, 0.7,
-                                                   0.75, 0.8, 0.85, 0.9, 0.95])
-    return bundle, metrics, detections, ground_truths, elapsed
+    iou_thresholds = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+    ap_metrics = evaluate_predictions(detections, ground_truths, classes, iou_thresholds)
+    threshold_detections = []
+    for detection in detections:
+        keep = detection["scores"] >= conf_thr
+        threshold_detections.append({key: values[keep] for key, values in detection.items()})
+    threshold_metrics = evaluate_predictions(threshold_detections, ground_truths,
+                                             classes, [0.5])
+    metrics = {
+        **ap_metrics,
+        "precision": threshold_metrics["precision"],
+        "recall": threshold_metrics["recall"],
+        "f1": threshold_metrics["f1"],
+        "total_tp": threshold_metrics["total_tp"],
+        "total_fp": threshold_metrics["total_fp"],
+        "total_gt": threshold_metrics["total_gt"],
+        "map_confidence_floor": 0.0,
+    }
+    return bundle, metrics, threshold_detections, ground_truths, elapsed
 
 
 def main():
@@ -72,6 +87,7 @@ def main():
     cfg = load_config(args.config)
     bundle, metrics, dets, gts, elapsed = run_evaluation(
         cfg, args.checkpoint, args.max_images, args.conf, args.nms, args.batch_size)
+    classes = bundle["classes"]
 
     report = {
         "checkpoint": args.checkpoint,
@@ -81,11 +97,17 @@ def main():
             "val_annotations": cfg["dataset"]["annotation_val"],
             "val_images": cfg["dataset"]["image_dir_val"],
             "images_evaluated": len(dets),
+            "images_with_detections": sum(bool(len(det["boxes"])) for det in dets),
+            "predicted_class_counts": {
+                classes[class_id]: sum(int((det["labels"] == class_id).sum()) for det in dets)
+                for class_id in range(len(classes))
+            },
             "total_gt_boxes": metrics["total_gt"],
         },
         "classes": bundle["classes"],
         "thresholds": {"confidence": args.conf, "nms": args.nms,
-                       "iou_range": "0.50:0.95 step 0.05"},
+                       "iou_range": "0.50:0.95 step 0.05",
+                       "map_confidence_floor": metrics["map_confidence_floor"]},
         "eval_time_s": round(elapsed, 1),
         "device": str(bundle["device"]),
         "precision": metrics["precision"],
@@ -104,8 +126,9 @@ def main():
              f"checkpoint:  {args.checkpoint}" +
              ("   [SMOKE-TEST CHECKPOINT - not a trained model]" if bundle["smoke_test"] else ""),
              f"epoch:       {bundle['epoch']}",
-             f"images:      {len(dets)}  GT boxes: {metrics['total_gt']}",
+             f"images:      {len(dets)}  with detections: {report['dataset']['images_with_detections']}  GT boxes: {metrics['total_gt']}",
              f"conf={args.conf}  nms={args.nms}",
+             f"Predicted class counts: {report['dataset']['predicted_class_counts']}",
              f"Precision:   {metrics['precision']:.4f}",
              f"Recall:      {metrics['recall']:.4f}",
              f"F1:          {metrics['f1']:.4f}",

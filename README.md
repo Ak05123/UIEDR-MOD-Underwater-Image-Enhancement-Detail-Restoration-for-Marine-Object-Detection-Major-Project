@@ -1,4 +1,4 @@
-# UIEDR MOD — Underwater Image Enhancement Detail Restoration for Marine Object Detection
+# UIEDR MOD — Underwater Image enhancementDetail Restoration for Marine Object Detection
 
 # UIEDR MOD
 
@@ -6,7 +6,25 @@
 
 **Major Project**
 
+<<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
+- **enhancement:** gray-world white balance, LAB CLAHE, and multi-scale Retinex (MSR).
+- **Detector:** residual CNN -> YOLOv11-style C3k2/C2PSA/SPPF backbone -> FPN/PAN P3/P4/P5 -> RPN -> multi-level ROI Align -> coordinate attention -> detection heads.
+- **Dataset:** RAW-890-format DUO data at `dataset/DUO` with `holothurian`, `echinus`, `scallop`, and `starfish` classes.
+- **Training:** configurable AdamW or SGD training, schedulers, checkpointing, resume support, early stopping, and JSONL logs.
+- **Evaluation:** precision, recall, F1, mAP@0.50, mAP@0.50:0.95, and per-class AP.
+- **Inference:** single-image CLI and reusable Python utilities with annotated output rendering.
+- **Frontend:** Streamlit dashboard with dataset inspection, upload enhancement, live WebRTC camera inference, single and batch inference, evaluation, training controls, architecture inspection, and project information.
+=======
 UIEDR MOD is an underwater computer vision system that combines **underwater image enhancement, detail restoration, multi-scale feature extraction, region proposal generation, attention mechanisms, and object detection** to identify marine objects in challenging underwater images.
+>>>>>>> bdea433fb220d7823339e808e64d98e14742cc86
+=======
+UIEDR MOD is an underwater computer vision system that combines **underwater image enhancement, detail restoration, multi-scale feature extraction, region proposal generation, attention mechanisms, and object detection** to identify marine objects in challenging underwater images.
+>>>>>>> bdea433fb220d7823339e808e64d98e14742cc86
+=======
+UIEDR MOD is an underwater computer vision system that combines **underwater image enhancement, detail restoration, multi-scale feature extraction, region proposal generation, attention mechanisms, and object detection** to identify marine objects in challenging underwater images.
+>>>>>>> bdea433fb220d7823339e808e64d98e14742cc86
 
 The project uses the **DUO (Detection of Underwater Objects)** dataset and provides a complete **Streamlit-based interface** for dataset inspection, enhancement visualization, object detection, batch inference, evaluation, training, and architecture exploration.
 
@@ -295,6 +313,45 @@ streamlit run app.py
 ```
 
 The Streamlit interface contains:
+<<<<<<< HEAD
+<<<<<<< HEAD
+
+<<<<<<< HEAD
+### Live camera and phone testing
+
+On the development computer, run the app and open `http://localhost:8501`. In **Enhancement → Live Camera**, select **Start Camera** and allow browser camera access. The desktop preview stays live while a separate enhanced/detected result and callback-measured FPS, processing time, device, and detection count update as frames finish. Slow CPU processing drops stale frames instead of accumulating a queue.
+
+To test from a phone:
+
+1. Start Streamlit on the development computer with `streamlit run app.py --server.port 8501`.
+2. Expose port 8501 through an HTTPS tunnel, for example `ngrok http 8501` after configuring ngrok, or deploy to an HTTPS Streamlit host.
+3. Open the tunnel's generated `https://...` URL on the phone. Do not use `http://<PC-LAN-IP>:8501`; mobile browsers block camera access on that insecure origin.
+4. Open **Enhancement → Live Camera**, allow camera permission, and press **Start Camera**. The rear-facing camera is preferred when supported; use **Switch camera** to choose another device.
+
+The public STUN server is configured under `webrtc.ice_servers` in `config.yaml`. Some mobile carriers, corporate networks, and hosted deployments also require TURN. Set `UIEDR_TURN_URL`, `UIEDR_TURN_USERNAME`, and `UIEDR_TURN_CREDENTIAL` as server-side environment secrets; never commit TURN credentials. HTTPS is required for remote browser camera access, and an HTTPS page alone does not guarantee WebRTC connectivity if the network blocks STUN/TURN traffic.
+
+## Command-line usage
+=======
+=======
+
+>>>>>>> bdea433fb220d7823339e808e64d98e14742cc86
+1. **Dashboard**
+2. **Dataset**
+3. **Enhancement**
+4. **Detection**
+5. **Batch Inference**
+6. **Evaluation**
+7. **Training**
+8. **Architecture**
+9. **About**
+<<<<<<< HEAD
+>>>>>>> bdea433fb220d7823339e808e64d98e14742cc86
+=======
+>>>>>>> bdea433fb220d7823339e808e64d98e14742cc86
+
+---
+
+=======
 
 1. **Dashboard**
 2. **Dataset**
@@ -308,6 +365,7 @@ The Streamlit interface contains:
 
 ---
 
+>>>>>>> bdea433fb220d7823339e808e64d98e14742cc86
 ## 🖼️ Enhancement Pipeline
 
 The Enhancement section visualizes the individual processing stages:
@@ -391,7 +449,25 @@ python train.py --epochs 50 --batch-size 4 --device cuda --num-workers 4
 python train.py --checkpoint checkpoints/latest.pt --device cuda
 ```
 
+<<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
+## Full DUO CUDA training on Kaggle
+
+Use `UIEDR_MOD_CUDA_FINAL_TRAINING.zip` as the source package. In Kaggle, create a notebook with a GPU accelerator, attach the package as input, extract it under `/kaggle/working`, and run `python kaggle_train.py` from the extracted package root. The runner requires CUDA, validates all 6,671 train and 1,111 official test images and their annotations, targets 50 epochs, uses multiple workers, and starts with batch size 2. If CUDA runs out of memory, it lowers only the batch size and resumes from the latest completed epoch.
+
+The runner evaluates all 1,111 test images and writes `reports/final_metrics.json`, `reports/final_metrics.txt`, and real model-prediction images under `outputs/visualizations/final_test/`. It will not use or overwrite a pre-existing `.pt` checkpoint. After the Kaggle run finishes, save a notebook version and download `checkpoints/best.pt` from the notebook's Output files; place that file at the local project's `checkpoints/best.pt` before running Streamlit. These artifacts and the Streamlit detection page must be checked after the GPU run; a completed CPU subset diagnostic is not final-model validation.
+
+The existing `--resume` option remains available as an alias for `--checkpoint`. Each epoch writes an epoch checkpoint, `latest.pt`, and updates `best.pt` when validation loss improves. Evaluation and inference can be run independently afterward with `evaluate.py` and `infer.py` using `checkpoints/best.pt`.
+=======
 Training checkpoints include:
+>>>>>>> bdea433fb220d7823339e808e64d98e14742cc86
+=======
+Training checkpoints include:
+>>>>>>> bdea433fb220d7823339e808e64d98e14742cc86
+=======
+Training checkpoints include:
+>>>>>>> bdea433fb220d7823339e808e64d98e14742cc86
 
 ```text
 checkpoints/
@@ -440,11 +516,27 @@ Example output:
 ```text
 Image: 994.jpg
 
+<<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
+The configured official DUO test split is used for per-epoch validation, checkpoint selection, and final evaluation. Therefore, final metrics are not an untouched independent holdout result. No separate validation directory is created by the current configuration.
+=======
+=======
+>>>>>>> bdea433fb220d7823339e808e64d98e14742cc86
+=======
+>>>>>>> bdea433fb220d7823339e808e64d98e14742cc86
 Detected Objects:
 - Class
 - Confidence
 - Bounding Box
 ```
+<<<<<<< HEAD
+<<<<<<< HEAD
+>>>>>>> bdea433fb220d7823339e808e64d98e14742cc86
+=======
+>>>>>>> bdea433fb220d7823339e808e64d98e14742cc86
+=======
+>>>>>>> bdea433fb220d7823339e808e64d98e14742cc86
 
 ---
 

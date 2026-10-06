@@ -3,5 +3,6 @@ opencv-python
 Pillow
 PyYAML
 streamlit
+streamlit-webrtc>=0.78.1
 torch
 torchvision
